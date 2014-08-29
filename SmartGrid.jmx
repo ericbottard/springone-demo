@@ -23,7 +23,7 @@
           <boolProp name="LoopController.continue_forever">false</boolProp>
           <intProp name="LoopController.loops">-1</intProp>
         </elementProp>
-        <stringProp name="ThreadGroup.num_threads">1</stringProp>
+        <stringProp name="ThreadGroup.num_threads">10</stringProp>
         <stringProp name="ThreadGroup.ramp_time">1</stringProp>
         <longProp name="ThreadGroup.start_time">1408979665000</longProp>
         <longProp name="ThreadGroup.end_time">1408979665000</longProp>
@@ -143,17 +143,14 @@
             <stringProp name="filename"></stringProp>
             <stringProp name="parameters"></stringProp>
             <boolProp name="resetInterpreter">false</boolProp>
-            <stringProp name="script">  start = ${TESTSTART.MS}L;
-  now = ${__time}L;
-  next = ${timestamp}L * 1000;
-  firstTS = ${firstTS}L * 1000;
+            <stringProp name="script">  start = ${TESTSTART.MS}L;     // When this run started, ms since epoch
+  now = ${__time}L;             // now, ms since epoch
+  next = ${timestamp}L * 1000;  // the next timestamp in file, ms since epoch
+  firstTS = ${firstTS}L * 1000; // the first timestamp in file, ms since epoch
 
-//run = now - start;
-//file = next - firstTS;
+  ff = 30; // How fast to replay values (1 = real time, 60 = 60x faster, etc)
 
-sleep =  (next - firstTS) - (now - start);
-log.info(&quot;&quot; + start + &quot; &quot; + now + &quot; &quot; + next + &quot; &quot; + firstTS + &quot;  =&gt; &quot; + sleep);
-//return sleep &gt; 0 ? sleep : 0;
+sleep =  (next - firstTS) - (now - start) * ff; // OK to return &lt;0 sleep
 
 return sleep;</stringProp>
           </BeanShellTimer>
