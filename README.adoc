@@ -20,16 +20,18 @@ awk -F ',' '$4 == 1 && $5 == 0 && $6 == 9 && $7 == 0' sorted100M.60.csv > sorted
 _i.e._ it should contain a _load_ datapoint every minute for plug number `house:0, household:9, plug:0`. This file has 976 lines, and 976/60 ~= 16.26666.
 
 == Using the new aggregate-counter
-Grab Spring XD from [this branch]. This adds:
+Grab Spring XD from https://github.com/ericbottard/spring-xd/tree/XD-2107-1048[this branch]. This adds:
 
-* (~XD-1048) The ability to dynamically select the name of any metric sink by using `--nameExpression=xxx` (SpEL expression against the message). This is an alternative to `--name=foo` (which amounts to `--nameExpression='foo'`)
+* (~XD-1048) The ability to dynamically select the name of any metric sink by using `--nameExpression=xxx` (SpEL expression against the message). This is an alternative to `--name=foo` (which amounts to `--nameExpression='''foo'''`)
 * (XD-2107) The ability to increment an `aggregate-counter` by any SpEL expression against the message (the default is still `1`), by using `--incrementExpression=xxx`
 
 Using this, let's do some simple checks (XD singlenode using redis for analytics, *redis-cli FLUSHDB between each test* )
 
 === test1
-BeanShell Timer:ff=960
-CSV Data Set Config: filename=sorted100M.60.h0.hh9.p0.csv
+
+* BeanShell Timer:ff=960
+* CSV Data Set Config: filename=sorted100M.60.h0.hh9.p0.csv
+
 ```
 xd:> stream create foo --definition "http | filter --expression=#jsonPath(payload,'$.property')==1 | aggregate-counter --timeField=payload.timestamp_c.toString() " --deploy
 ```
@@ -68,3 +70,81 @@ AggregateCounter=foo
 ```
 
 This shows that the dataset does not exactly contain one point every second, at least at the plug level. Hopefully, this averages out at the household/house level.
+
+The corresponding REST API call is
+```
+curl http://localhost:9393/metrics/aggregate-counters/foo?resolution=hour&from=2013-09-01T00:00:00.000%2B02:00&to=2013-09-02T00:00:00.000%2B02:00
+```
+
+=== test2
+* BeanShell Timer:ff=60
+* CSV Data Set Config: filename=sorted100M.60.h0.csv (all data for house 0)
+
+```
+xd:> stream create foo --definition "http | filter --expression=#jsonPath(payload,'$.property')==1 | aggregate-counter --timeField=payload.timestamp_c.toString() --incrementExpression=payload.value.toString()" --deploy
+```
+Run the injection, this takes about 16/60 ~= 16 minutes to run
+```
+xd:> aggregate-counter display --name foo --from '2013-09-01 00:00:00' --to '2013-09-02 00:00:00' --resolution hour
+
+ AggregateCounter=foo
+  -----------------------------  -  -------
+  TIME                           -  COUNT
+  Sun Sep 01 00:00:00 CEST 2013  |  172 855
+  Sun Sep 01 01:00:00 CEST 2013  |  45 472
+  Sun Sep 01 02:00:00 CEST 2013  |  39 285
+  Sun Sep 01 03:00:00 CEST 2013  |  38 379
+  Sun Sep 01 04:00:00 CEST 2013  |  39 065
+  Sun Sep 01 05:00:00 CEST 2013  |  38 947
+  Sun Sep 01 06:00:00 CEST 2013  |  40 266
+  Sun Sep 01 07:00:00 CEST 2013  |  39 316
+  Sun Sep 01 08:00:00 CEST 2013  |  99 917
+  Sun Sep 01 09:00:00 CEST 2013  |  238 656
+  Sun Sep 01 10:00:00 CEST 2013  |  222 654
+  Sun Sep 01 11:00:00 CEST 2013  |  387 693
+  Sun Sep 01 12:00:00 CEST 2013  |  417 724
+  Sun Sep 01 13:00:00 CEST 2013  |  359 732
+  Sun Sep 01 14:00:00 CEST 2013  |  247 171
+  Sun Sep 01 15:00:00 CEST 2013  |  285 718
+  Sun Sep 01 16:00:00 CEST 2013  |  286 382
+  Sun Sep 01 17:00:00 CEST 2013  |  0
+  Sun Sep 01 18:00:00 CEST 2013  |  0
+  Sun Sep 01 19:00:00 CEST 2013  |  0
+  Sun Sep 01 20:00:00 CEST 2013  |  0
+  Sun Sep 01 21:00:00 CEST 2013  |  0
+  Sun Sep 01 22:00:00 CEST 2013  |  0
+  Sun Sep 01 23:00:00 CEST 2013  |  0
+  Mon Sep 02 00:00:00 CEST 2013  |  0
+```
+
+Note that if we look at the minute level, there is some jitter. Also, if looking *while the test is running*, seems that data arrives out of order !!!?
+
+=== test3
+Testing will the full 60s subsampled dataset is not possible on one laptop. So now let's try with multiple houses, but skim the data by using
+```
+awk -F ',' '$4 == 1 && $5 == 0' sorted100M.60.csv > sorted100M.60.p0.csv
+```
+
+_i.e._ use several houses and households, but keep only plugs named `0` in those.
+
+* BeanShell Timer:ff=60
+* CSV Data Set Config: filename=sorted100M.60.p0.csv 
+
+```
+xd:> stream create foo --definition "http | filter --expression=#jsonPath(payload,'$.property')==1 | aggregate-counter --timeField=payload.timestamp_c.toString() --incrementExpression=payload.value.toString() --nameExpression='house'+payload.house_id" --deploy
+```
+
+This creates one aggregate-counter _per house_:
+```
+xd:>aggregate-counter list
+
+  AggregateCounter name
+  ---------------------
+  house0
+  house1
+  house10
+  house11
+  ...
+
+```
+
