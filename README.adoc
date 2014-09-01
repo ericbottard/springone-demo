@@ -1,0 +1,70 @@
+= SpringOne 2014 Spring XD keynote demo
+
+== Setup
+Clone this repository and `cd` into the clone directory.
+
+The demo is based on sample data that is referenced on http://www.cse.iitb.ac.in/debs2014/?page_id=42[this page]: The file https://drive.google.com/file/d/0B0TBL8JNn3JgV29HZWhSSVREQ0E/edit?usp=sharing[sorted100M.csv] contains approximately 16¼h worth of data.
+
+The demo will replay data at a faster rate _e.g._ 60x faster, so that 16¼ hours last 16¼ minutes. This is achieved by changing the `ff` variable value in the BeanShell timer definition inside the JMeter file. Additionally, the amount of data can be reduced accordingly (or not, those two aspects can be changed independently) by using the tool at https://github.com/ericbottard/csv-subsampler.
+
+The file `sorted100M.60.csv` is the result of applying
+```
+SubSampler --interval 60 --sample 1 --identity 3,4,5,6
+```
+on the dataset (_i.e._ keep one data point every minute, for every plug, both for the _load_ and the _work_). This results in a 3,771,738 lines file.
+
+For verification purposes, there is also the file named `sorted100M.60.h0.hh9.p0.csv` which is the result of 
+```
+awk -F ',' '$4 == 1 && $5 == 0 && $6 == 9 && $7 == 0' sorted100M.60.csv > sorted100M.60.h0.hh9.p0.csv
+```
+_i.e._ it should contain a _load_ datapoint every minute for plug number `house:0, household:9, plug:0`. This file has 976 lines, and 976/60 ~= 16.26666.
+
+== Using the new aggregate-counter
+Grab Spring XD from [this branch]. This adds:
+
+* (~XD-1048) The ability to dynamically select the name of any metric sink by using `--nameExpression=xxx` (SpEL expression against the message). This is an alternative to `--name=foo` (which amounts to `--nameExpression='foo'`)
+* (XD-2107) The ability to increment an `aggregate-counter` by any SpEL expression against the message (the default is still `1`), by using `--incrementExpression=xxx`
+
+Using this, let's do some simple checks (XD singlenode using redis for analytics, *redis-cli FLUSHDB between each test* )
+
+=== test1
+BeanShell Timer:ff=960
+CSV Data Set Config: filename=sorted100M.60.h0.hh9.p0.csv
+```
+xd:> stream create foo --definition "http | filter --expression=#jsonPath(payload,'$.property')==1 | aggregate-counter --timeField=payload.timestamp_c.toString() " --deploy
+```
+Run the injection, this takes about 16/960 ~= 1minute to run
+```
+xd:> aggregate-counter display --name foo --from '2013-09-01 00:00:00' --to '2013-09-02 00:00:00' --resolution hour
+
+AggregateCounter=foo
+  -----------------------------  -  -----
+  TIME                           -  COUNT
+  Sun Sep 01 00:00:00 CEST 2013  |  59
+  Sun Sep 01 01:00:00 CEST 2013  |  58
+  Sun Sep 01 02:00:00 CEST 2013  |  59
+  Sun Sep 01 03:00:00 CEST 2013  |  57
+  Sun Sep 01 04:00:00 CEST 2013  |  58
+  Sun Sep 01 05:00:00 CEST 2013  |  58
+  Sun Sep 01 06:00:00 CEST 2013  |  59
+  Sun Sep 01 07:00:00 CEST 2013  |  58
+  Sun Sep 01 08:00:00 CEST 2013  |  59
+  Sun Sep 01 09:00:00 CEST 2013  |  58
+  Sun Sep 01 10:00:00 CEST 2013  |  58
+  Sun Sep 01 11:00:00 CEST 2013  |  59
+  Sun Sep 01 12:00:00 CEST 2013  |  58
+  Sun Sep 01 13:00:00 CEST 2013  |  59
+  Sun Sep 01 14:00:00 CEST 2013  |  58
+  Sun Sep 01 15:00:00 CEST 2013  |  58
+  Sun Sep 01 16:00:00 CEST 2013  |  43
+  Sun Sep 01 17:00:00 CEST 2013  |  0
+  Sun Sep 01 18:00:00 CEST 2013  |  0
+  Sun Sep 01 19:00:00 CEST 2013  |  0
+  Sun Sep 01 20:00:00 CEST 2013  |  0
+  Sun Sep 01 21:00:00 CEST 2013  |  0
+  Sun Sep 01 22:00:00 CEST 2013  |  0
+  Sun Sep 01 23:00:00 CEST 2013  |  0
+  Mon Sep 02 00:00:00 CEST 2013  |  0
+```
+
+This shows that the dataset does not exactly contain one point every second, at least at the plug level. Hopefully, this averages out at the household/house level.

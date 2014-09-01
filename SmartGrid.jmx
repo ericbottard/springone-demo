@@ -21,7 +21,7 @@
         <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
         <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true">
           <boolProp name="LoopController.continue_forever">false</boolProp>
-          <intProp name="LoopController.loops">-1</intProp>
+          <stringProp name="LoopController.loops">1</stringProp>
         </elementProp>
         <stringProp name="ThreadGroup.num_threads">10</stringProp>
         <stringProp name="ThreadGroup.ramp_time">1</stringProp>
@@ -32,38 +32,6 @@
         <stringProp name="ThreadGroup.delay"></stringProp>
       </ThreadGroup>
       <hashTree>
-        <ResultCollector guiclass="ViewResultsFullVisualizer" testclass="ResultCollector" testname="View Results Tree" enabled="true">
-          <boolProp name="ResultCollector.error_logging">false</boolProp>
-          <objProp>
-            <name>saveConfig</name>
-            <value class="SampleSaveConfiguration">
-              <time>true</time>
-              <latency>true</latency>
-              <timestamp>true</timestamp>
-              <success>true</success>
-              <label>true</label>
-              <code>true</code>
-              <message>true</message>
-              <threadName>true</threadName>
-              <dataType>true</dataType>
-              <encoding>false</encoding>
-              <assertions>true</assertions>
-              <subresults>true</subresults>
-              <responseData>false</responseData>
-              <samplerData>false</samplerData>
-              <xml>false</xml>
-              <fieldNames>false</fieldNames>
-              <responseHeaders>false</responseHeaders>
-              <requestHeaders>false</requestHeaders>
-              <responseDataOnError>false</responseDataOnError>
-              <saveAssertionResultsFailureMessage>false</saveAssertionResultsFailureMessage>
-              <assertionsResultsToSave>0</assertionsResultsToSave>
-              <bytes>true</bytes>
-            </value>
-          </objProp>
-          <stringProp name="filename"></stringProp>
-        </ResultCollector>
-        <hashTree/>
         <ResultCollector guiclass="SummaryReport" testclass="ResultCollector" testname="Summary Report" enabled="true">
           <boolProp name="ResultCollector.error_logging">false</boolProp>
           <objProp>
@@ -106,7 +74,14 @@
               <collectionProp name="Arguments.arguments">
                 <elementProp name="" elementType="HTTPArgument">
                   <boolProp name="HTTPArgument.always_encode">false</boolProp>
-                  <stringProp name="Argument.value">{&quot;id&quot;:${id}, &quot;timestamp&quot;: ${timestamp}, &quot;value&quot;: ${value}, &quot;property&quot; : ${property}, &quot;plug&quot; : ${plug}, &quot;household&quot;: ${household},&quot;house&quot;: ${house}}</stringProp>
+                  <stringProp name="Argument.value">{&quot;id&quot;:${id},&#xd;
+&quot;timestamp&quot;: ${timestamp},&#xd;
+&quot;timestamp_c&quot;: &quot;${__BeanShell(new java.text.SimpleDateFormat(&quot;yyyy-MM-dd&apos;T&apos;HH:mm:ss.SSS&apos;Z&apos;&quot;).format(new java.util.Date(${timestamp}*1000L)))}&quot;,&#xd;
+&quot;value&quot;: ${value}, &#xd;
+&quot;property&quot; : ${property}, &#xd;
+&quot;plug_id&quot; : ${plug_id}, &#xd;
+&quot;household_id&quot;: ${household_id},&#xd;
+&quot;house_id&quot;: ${house_id}}</stringProp>
                   <stringProp name="Argument.metadata">=</stringProp>
                 </elementProp>
               </collectionProp>
@@ -131,12 +106,12 @@
           <CSVDataSet guiclass="TestBeanGUI" testclass="CSVDataSet" testname="CSV Data Set Config" enabled="true">
             <stringProp name="delimiter">,</stringProp>
             <stringProp name="fileEncoding"></stringProp>
-            <stringProp name="filename">sorted100M.csv</stringProp>
+            <stringProp name="filename">/tmp/h</stringProp>
             <boolProp name="quotedData">false</boolProp>
             <boolProp name="recycle">false</boolProp>
             <stringProp name="shareMode">shareMode.all</stringProp>
             <boolProp name="stopThread">true</boolProp>
-            <stringProp name="variableNames">id,timestamp,value,property,plug,household,house</stringProp>
+            <stringProp name="variableNames">id,timestamp,value,property,plug_id,household_id,house_id</stringProp>
           </CSVDataSet>
           <hashTree/>
           <BeanShellTimer guiclass="TestBeanGUI" testclass="BeanShellTimer" testname="BeanShell Timer" enabled="true">
@@ -148,10 +123,11 @@
   next = ${timestamp}L * 1000;  // the next timestamp in file, ms since epoch
   firstTS = ${firstTS}L * 1000; // the first timestamp in file, ms since epoch
 
-  ff = 30; // How fast to replay values (1 = real time, 60 = 60x faster, etc)
+  ff = 960; // How fast to replay values (1 = real time, 60 = 60x faster, etc)
 
-sleep =  (next - firstTS) - (now - start) * ff; // OK to return &lt;0 sleep
+sleep =  ((next - firstTS) - (now - start)*ff) / ff; // OK to return &lt;0 sleep
 
+log.info(&quot;((&quot; + next +&quot; - &quot; + firstTS + &quot;) - (&quot; + now + &quot; - &quot; + start + &quot;)) /  &quot; + ff + &quot; = &quot; + sleep);
 return sleep;</stringProp>
           </BeanShellTimer>
           <hashTree/>
